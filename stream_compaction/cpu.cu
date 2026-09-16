@@ -20,6 +20,12 @@ namespace StreamCompaction {
         void scan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
             // TODO
+
+            odata[0] = 0;
+            for (int i = 1; i < n; ++i) {
+                odata[i] = odata[i - 1] + idata[i - 1];
+            }
+
             timer().endCpuTimer();
         }
 
@@ -31,8 +37,16 @@ namespace StreamCompaction {
         int compactWithoutScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
             // TODO
+
+            int count = 0;
+            for (int i = 0; i < n; ++i) {
+                if (idata[i] != 0) {
+                    odata[count++] = idata[i];
+                }
+            }
+
             timer().endCpuTimer();
-            return -1;
+            return count;
         }
 
         /**
@@ -43,8 +57,35 @@ namespace StreamCompaction {
         int compactWithScan(int n, int *odata, const int *idata) {
             timer().startCpuTimer();
             // TODO
+
+            int* mapped = new int[n];
+            int* scanned = new int[n];
+
+            // map non-zero elements to 1, zeros to 0
+            for (int i = 0; i < n; ++i) {
+                mapped[i] = (idata[i] != 0) ? 1 : 0;
+            }
+
+            // compute exclusive scan on mapped boolean array
+            scanned[0] = 0;
+            for (int i = 1; i < n; ++i) {
+                scanned[i] = scanned[i - 1] + mapped[i - 1];
+            }
+
+            int count = scanned[n - 1] + mapped[n - 1];
+
+            // scatter non-zero elements to output array based on scanned indices
+            for (int i = 0; i < n; ++i) {
+                if (mapped[i] == 1) {
+                    odata[scanned[i]] = idata[i];
+                }
+            }
+
+            delete[] mapped;
+            delete[] scanned;
+
             timer().endCpuTimer();
-            return -1;
+            return count;
         }
     }
 }
