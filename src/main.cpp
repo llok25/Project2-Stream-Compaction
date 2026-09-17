@@ -7,17 +7,20 @@
  */
 
 #include <cstdio>
+#include <algorithm>
 #include <stream_compaction/cpu.h>
 #include <stream_compaction/naive.h>
 #include <stream_compaction/efficient.h>
 #include <stream_compaction/thrust.h>
+#include <stream_compaction/radix.h>
+#include <stream_compaction/gpu_shared.h>
 #include "testing_helpers.hpp"
 
-const int SIZE = 1 << 8; // feel free to change the size of array
+const int SIZE = 1 << 16; // feel free to change the size of array
 const int NPOT = SIZE - 3; // Non-Power-Of-Two
-int *a = new int[SIZE];
-int *b = new int[SIZE];
-int *c = new int[SIZE];
+int* a = new int[SIZE];
+int* b = new int[SIZE];
+int* c = new int[SIZE];
 
 int main(int argc, char* argv[]) {
     // Scan tests
@@ -78,7 +81,18 @@ int main(int argc, char* argv[]) {
     printDesc("work-efficient scan, non-power-of-two");
     StreamCompaction::Efficient::scan(NPOT, c, a);
     printElapsedTime(StreamCompaction::Efficient::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
-    //printArray(NPOT, c, true);
+    printCmpResult(NPOT, b, c);
+
+    zeroArray(SIZE, c);
+    printDesc("shared memory scan, power-of-two");
+    StreamCompaction::Shared::scan(SIZE, c, a);
+    printElapsedTime(StreamCompaction::Shared::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    printCmpResult(SIZE, b, c);
+
+    zeroArray(SIZE, c);
+    printDesc("shared memory scan, non-power-of-two");
+    StreamCompaction::Shared::scan(NPOT, c, a);
+    printElapsedTime(StreamCompaction::Shared::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
     printCmpResult(NPOT, b, c);
 
     zeroArray(SIZE, c);
@@ -147,7 +161,36 @@ int main(int argc, char* argv[]) {
     //printArray(count, c, true);
     printCmpLenResult(count, expectedNPOT, b, c);
 
+    printf("\n");
+    printf("****************\n");
+    printf("** RADIX SORT **\n");
+    printf("****************\n");
+
+    genArray(SIZE, a, 100);
+    int* expected_sorted = new int[SIZE];
+
+    // Power-of-two Radix Sort Test
+    std::copy(a, a + SIZE, expected_sorted);
+    std::sort(expected_sorted, expected_sorted + SIZE);
+
+    zeroArray(SIZE, c);
+    printDesc("radix sort, power-of-two");
+    StreamCompaction::Radix::sort(SIZE, c, a);
+    printElapsedTime(StreamCompaction::Radix::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    printCmpResult(SIZE, expected_sorted, c);
+
+    // Non-power-of-two Radix Sort Test
+    std::copy(a, a + NPOT, expected_sorted);
+    std::sort(expected_sorted, expected_sorted + NPOT);
+
+    zeroArray(SIZE, c);
+    printDesc("radix sort, non-power-of-two");
+    StreamCompaction::Radix::sort(NPOT, c, a);
+    printElapsedTime(StreamCompaction::Radix::timer().getGpuElapsedTimeForPreviousOperation(), "(CUDA Measured)");
+    printCmpResult(NPOT, expected_sorted, c);
+
     system("pause"); // stop Win32 console from closing on exit
+    delete[] expected_sorted;
     delete[] a;
     delete[] b;
     delete[] c;

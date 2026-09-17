@@ -45,6 +45,9 @@ add_executable(${CMAKE_PROJECT_NAME} ${sources} ${headers})
 target_link_libraries(${CMAKE_PROJECT_NAME} stream_compaction)
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${CMAKE_PROJECT_NAME})
 
+add_executable(cis5650_stream_compaction_bench src/benchmark.cpp)
+target_link_libraries(cis5650_stream_compaction_bench stream_compaction)
+
 # Include CUDA headers globally for host code
 include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 

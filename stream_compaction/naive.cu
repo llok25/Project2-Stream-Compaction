@@ -5,10 +5,12 @@
 
 #define blockSize 128
 
-namespace StreamCompaction {
-    namespace Naive {
+namespace StreamCompaction
+{
+    namespace Naive
+    {
         using StreamCompaction::Common::PerformanceTimer;
-        PerformanceTimer& timer()
+        PerformanceTimer &timer()
         {
             static PerformanceTimer timer;
             return timer;
@@ -17,14 +19,18 @@ namespace StreamCompaction {
         /**
          * Kernel performing one pass of the naive inclusive scan algorithm.
          */
-        __global__ void kernNaiveScanPass(int n, int offset, int* odata, const int* idata) {
+        __global__ void kernNaiveScanPass(int n, int offset, int *odata, const int *idata)
+        {
             int index = threadIdx.x + blockIdx.x * blockDim.x;
-            if (index >= n) return;
+            if (index >= n)
+                return;
 
-            if (index >= offset) {
+            if (index >= offset)
+            {
                 odata[index] = idata[index] + idata[index - offset];
             }
-            else {
+            else
+            {
                 odata[index] = idata[index];
             }
         }
@@ -32,14 +38,18 @@ namespace StreamCompaction {
         /**
          * Kernel converting an inclusive scan into an exclusive scan.
          */
-        __global__ void kernInclusiveToExclusive(int n, int* odata, const int* idata) {
+        __global__ void kernInclusiveToExclusive(int n, int *odata, const int *idata)
+        {
             int index = threadIdx.x + blockIdx.x * blockDim.x;
-            if (index >= n) return;
+            if (index >= n)
+                return;
 
-            if (index == 0) {
+            if (index == 0)
+            {
                 odata[0] = 0;
             }
-            else {
+            else
+            {
                 odata[index] = idata[index - 1];
             }
         }
@@ -47,17 +57,17 @@ namespace StreamCompaction {
         /**
          * Performs prefix-sum (aka scan) on idata, storing the result into odata.
          */
-        void scan(int n, int *odata, const int *idata) {
-            timer().startGpuTimer();
+        void scan(int n, int *odata, const int *idata)
+        {
             // TODO
 
-            int* dev_buf1 = nullptr;
-            int* dev_buf2 = nullptr;
+            int *dev_buf1 = nullptr;
+            int *dev_buf2 = nullptr;
 
-            cudaMalloc((void**)&dev_buf1, n * sizeof(int));
+            cudaMalloc((void **)&dev_buf1, n * sizeof(int));
             checkCUDAError("cudaMalloc dev_buf1 failed!");
 
-            cudaMalloc((void**)&dev_buf2, n * sizeof(int));
+            cudaMalloc((void **)&dev_buf2, n * sizeof(int));
             checkCUDAError("cudaMalloc dev_buf2 failed!");
 
             cudaMemcpy(dev_buf1, idata, n * sizeof(int), cudaMemcpyHostToDevice);
@@ -66,23 +76,25 @@ namespace StreamCompaction {
             dim3 fullBlocksPerGrid((n + blockSize - 1) / blockSize);
 
             // run ilog2ceil(n) iterations of naive inclusive scan
-            for (int offset = 1; offset < n; offset <<= 1) {
-                kernNaiveScanPass << <fullBlocksPerGrid, blockSize >> > (n, offset, dev_buf2, dev_buf1);
+            timer().startGpuTimer();
+            for (int offset = 1; offset < n; offset <<= 1)
+            {
+                kernNaiveScanPass<<<fullBlocksPerGrid, blockSize>>>(n, offset, dev_buf2, dev_buf1);
                 checkCUDAError("kernNaiveScanPass failed!");
                 std::swap(dev_buf1, dev_buf2);
             }
 
             // convert inclusive scan result in dev_buf1 to exclusive scan in dev_buf2
-            kernInclusiveToExclusive << <fullBlocksPerGrid, blockSize >> > (n, dev_buf2, dev_buf1);
+            kernInclusiveToExclusive<<<fullBlocksPerGrid, blockSize>>>(n, dev_buf2, dev_buf1);
             checkCUDAError("kernInclusiveToExclusive failed!");
+
+            timer().endGpuTimer();
 
             cudaMemcpy(odata, dev_buf2, n * sizeof(int), cudaMemcpyDeviceToHost);
             checkCUDAError("cudaMemcpy dev_buf2 to odata failed!");
 
             cudaFree(dev_buf1);
             cudaFree(dev_buf2);
-
-            timer().endGpuTimer();
         }
     }
 }

@@ -9,5 +9,8 @@ namespace StreamCompaction {
         void scan(int n, int *odata, const int *idata);
 
         int compact(int n, int *odata, const int *idata);
+
+        // Device-to-device scan for internal use by Radix Sort
+        void runWorkEfficientScan(int paddedN, int* dev_data);
     }
 }
